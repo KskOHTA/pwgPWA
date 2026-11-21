@@ -78,10 +78,7 @@
     <label for="seedHash">シードハッシュ（SHA-256）</label>
     <input id="seedHash" type="text" readonly placeholder="メモを入力してハッシュを作成してください">
 
-    <div class="buttons">
-      <button id="generate" type="button">パスワードを生成</button>
-      <button id="reset" type="button">シードをリセット</button>
-    </div>
+    <div class="buttons"><button id="generate" type="button">パスワードを生成</button></div>
 
     <label for="result">生成結果</label>
     <div class="result-row">
@@ -92,6 +89,8 @@
     <p id="status" class="muted" aria-live="polite"></p>
     <p id="count" class="muted">生成回数：0</p>
     <p class="muted">同じメモ・文字数・パターンなら、同じ順番で生成した結果を再現できます。シードをリセットすると、生成回数も0に戻ります。</p>
+
+    <div class="buttons"><button id="reset" type="button">シードをリセット</button></div>
   </main>
 
   <script>
