@@ -198,15 +198,9 @@
     }
 
     async function generatePassword() {
-      if (!seedHex) {
+      if (!seedHex || getMemoSnapshot() !== memoSnapshot) {
         const created = await makeSeed();
         if (!created) return;
-        $("status").textContent = "ハッシュを作成してパスワードを生成しています。";
-      }
-
-      if (getMemoSnapshot() !== memoSnapshot) {
-        $("status").textContent = "メモが変更されています。ハッシュ作成ボタンを押してください。";
-        return;
       }
 
       if (!crypto.subtle) {
