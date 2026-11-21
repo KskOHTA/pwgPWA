@@ -246,7 +246,9 @@
         $("result").value = chars.join("");
         generationCount++;
         $("count").textContent = `生成回数：${generationCount}`;
-        $("status").textContent = "パスワードを生成しました。";
+        $("status").textContent = length < groups.length
+          ? "パスワードを生成しました。文字数不足のため、すべてのカテゴリの文字を含められませんでした。"
+          : "パスワードを生成しました。";
       } catch {
         $("status").textContent = "生成に失敗しました。HTTPS接続で開いているか確認してください。";
       }
