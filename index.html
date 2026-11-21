@@ -22,6 +22,9 @@
     .result-row { display: flex; gap: 8px; }
     .result-row input { flex: 1; min-width: 0; font-family: monospace; }
     .result-row button { width: auto; }
+    .memo-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px 44px; align-items: end; gap: 8px; }
+    .check-label { display: grid; place-items: center; width: 44px; height: 44px; margin: 0; border: 1px solid #8888; border-radius: 8px; }
+    .check-label input { width: 20px; min-height: 20px; height: 20px; margin: 0; padding: 0; }
     .note { padding: 12px; border-left: 4px solid #d99b18; background: #d99b1818; border-radius: 4px; }
     .muted { opacity: .8; font-size: .92rem; }
     #status { min-height: 1.5em; }
@@ -34,7 +37,7 @@
       このページはメモから同じパスワード列を再現できます。
       メモが推測されるとパスワードも再現されるため、
       <strong>重要なアカウントには、推測されやすいメモを使わないでください。</strong>
-      入力内容はこのページ内で処理し、保存・送信しません。
+      チェックしたメモはブラウザのローカルストレージに平文で保存されます。共有端末では保存しないでください。
     </p>
 
     <label for="length">文字数</label>
@@ -51,11 +54,24 @@
     </select>
 
     <label for="memo1">メモ1</label>
-    <input id="memo1" type="text" autocomplete="off">
+    <div class="memo-row">
+      <input id="memo1" type="password" autocomplete="off">
+      <label class="check-label" for="check1" title="メモ1を保存"><input id="check1" type="checkbox" aria-label="メモ1をローカルストレージに保存"></label>
+      <label class="check-label" for="show1" title="メモ1を表示"><input id="show1" type="checkbox" aria-label="メモ1を表示する（チェックなしで非表示）"></label>
+    </div>
     <label for="memo2">メモ2</label>
-    <input id="memo2" type="text" autocomplete="off">
+    <div class="memo-row">
+      <input id="memo2" type="password" autocomplete="off">
+      <label class="check-label" for="check2" title="メモ2を保存"><input id="check2" type="checkbox" aria-label="メモ2をローカルストレージに保存"></label>
+      <label class="check-label" for="show2" title="メモ2を表示"><input id="show2" type="checkbox" aria-label="メモ2を表示する（チェックなしで非表示）"></label>
+    </div>
     <label for="memo3">メモ3</label>
-    <input id="memo3" type="text" autocomplete="off">
+    <div class="memo-row">
+      <input id="memo3" type="password" autocomplete="off">
+      <label class="check-label" for="check3" title="メモ3を保存"><input id="check3" type="checkbox" aria-label="メモ3をローカルストレージに保存"></label>
+      <label class="check-label" for="show3" title="メモ3を表示"><input id="show3" type="checkbox" aria-label="メモ3を表示する（チェックなしで非表示）"></label>
+    </div>
+    <p class="muted">各行の1つ目のチェックはメモの保存、2つ目のチェックは入力内容の表示切替です。</p>
 
     <div class="buttons"><button id="makeSeed" type="button">メモからシードハッシュを作成</button></div>
 
@@ -80,7 +96,9 @@
 
   <script>
     "use strict";
+
     const $ = (id) => document.getElementById(id);
+
     const groupsByPattern = {
       "1": ["ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", "0123456789"],
       "2": ["abcdefghijklmnopqrstuvwxyz", "0123456789"],
@@ -89,21 +107,67 @@
       "5": ["ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", "0123456789", "!@#$%^&*()-_=+[]{};:,.?"],
       "6": ["abcdefghijklmnopqrstuvwxyz", "0123456789", "!@#$%^&*()-_=+[]{};:,.?"]
     };
+
     let seedHex = "";
     let memoSnapshot = "";
     let generationCount = 0;
 
-    function getMemoSnapshot() { return JSON.stringify([$("memo1").value, $("memo2").value, $("memo3").value]); }
-    function toHex(bytes) { return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join(""); }
+    function storageKey(number) { return `pwg.memo${number}`; }
+    function checkKey(number) { return `pwg.check${number}`; }
+    function visibilityKey(number) { return `pwg.show${number}`; }
+
+    function updateMemoVisibility(number) {
+      $("memo" + number).type = $("show" + number).checked ? "text" : "password";
+    }
+
+    function loadMemo(number) {
+      const checked = localStorage.getItem(checkKey(number)) === "true";
+      $("check" + number).checked = checked;
+      $("memo" + number).value = checked ? (localStorage.getItem(storageKey(number)) || "") : "";
+      $("show" + number).checked = localStorage.getItem(visibilityKey(number)) === "true";
+      updateMemoVisibility(number);
+    }
+
+    function saveMemo(number) {
+      const checkbox = $("check" + number);
+      localStorage.setItem(checkKey(number), String(checkbox.checked));
+      if (checkbox.checked) {
+        localStorage.setItem(storageKey(number), $("memo" + number).value);
+      } else {
+        localStorage.removeItem(storageKey(number));
+      }
+    }
+
+    function saveVisibility(number) {
+      localStorage.setItem(visibilityKey(number), String($("show" + number).checked));
+      updateMemoVisibility(number);
+    }
+
+    function getMemoSnapshot() {
+      return JSON.stringify([$("memo1").value, $("memo2").value, $("memo3").value]);
+    }
+
+    function toHex(bytes) {
+      return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+    }
+
     async function sha256(text) {
-      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      const bytes = new TextEncoder().encode(text);
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
       return new Uint8Array(digest);
     }
+
     async function makeSeed() {
-      if (!crypto.subtle) { $("status").textContent = "Web Crypto APIを利用できません。HTTPS接続で開いてください。"; return; }
-      if (![ $("memo1").value, $("memo2").value, $("memo3").value ].some(v => v.length > 0)) {
-        $("status").textContent = "シード作成には、メモを1つ以上入力してください。"; return;
+      if (!crypto.subtle) {
+        $("status").textContent = "Web Crypto APIを利用できません。HTTPS接続で開いてください。";
+        return;
       }
+
+      if (![$("memo1").value, $("memo2").value, $("memo3").value].some(v => v.length > 0)) {
+        $("status").textContent = "シード作成には、メモを1つ以上入力してください。";
+        return;
+      }
+
       try {
         memoSnapshot = getMemoSnapshot();
         seedHex = toHex(await sha256("password-generator-v1:" + memoSnapshot));
@@ -112,11 +176,15 @@
         $("result").value = "";
         $("count").textContent = "生成回数：0";
         $("status").textContent = "シードハッシュを作成しました。";
-      } catch { $("status").textContent = "ハッシュの作成に失敗しました。"; }
+      } catch {
+        $("status").textContent = "ハッシュの作成に失敗しました。";
+      }
     }
+
     async function randomBelow(limit, counterRef) {
       const range = 0x100000000;
       const ceiling = Math.floor(range / limit) * limit;
+
       while (true) {
         const context = `${generationCount}|${$("length").value}|${$("pattern").value}|${counterRef.value++}`;
         const bytes = await sha256(seedHex + "|character|" + context);
@@ -124,41 +192,98 @@
         if (value < ceiling) return value % limit;
       }
     }
+
     async function generatePassword() {
-      if (!seedHex) { $("status").textContent = "先にシードハッシュを作成してください。"; return; }
-      if (getMemoSnapshot() !== memoSnapshot) { $("status").textContent = "メモが変更されています。新しいシードハッシュを作成してください。"; return; }
-      if (!crypto.subtle) { $("status").textContent = "Web Crypto APIを利用できません。HTTPS接続で開いてください。"; return; }
+      if (!seedHex) {
+        $("status").textContent = "先にシードハッシュを作成してください。";
+        return;
+      }
+
+      if (getMemoSnapshot() !== memoSnapshot) {
+        $("status").textContent = "メモが変更されています。新しいシードハッシュを作成してください。";
+        return;
+      }
+
+      if (!crypto.subtle) {
+        $("status").textContent = "Web Crypto APIを利用できません。HTTPS接続で開いてください。";
+        return;
+      }
+
       const length = Number($("length").value);
-      if (!Number.isInteger(length) || length < 1 || length > 256) { $("status").textContent = "文字数は1〜256の整数で指定してください。"; return; }
+      if (!Number.isInteger(length) || length < 1 || length > 256) {
+        $("status").textContent = "文字数は1〜256の整数で指定してください。";
+        return;
+      }
+
       const groups = groupsByPattern[$("pattern").value];
       const alphabet = [...new Set(groups.join(""))];
       const counter = { value: 0 };
+
       try {
         const chars = [];
-        for (let i = 0; i < length; i++) { chars.push(alphabet[await randomBelow(alphabet.length, counter)]); }
+        for (let i = 0; i < length; i++) {
+          const index = await randomBelow(alphabet.length, counter);
+          chars.push(alphabet[index]);
+        }
+
         for (let i = 0; i < groups.length; i++) {
           const group = groups[i];
           if (chars.some(char => group.includes(char))) continue;
-          chars[await randomBelow(length, counter)] = group[await randomBelow(group.length, counter)];
+
+          const position = await randomBelow(length, counter);
+          const index = await randomBelow(group.length, counter);
+          chars[position] = group[index];
         }
+
         $("result").value = chars.join("");
         generationCount++;
         $("count").textContent = `生成回数：${generationCount}`;
         $("status").textContent = "パスワードを生成しました。";
-      } catch { $("status").textContent = "生成に失敗しました。HTTPS接続で開いているか確認してください。"; }
+      } catch {
+        $("status").textContent = "生成に失敗しました。HTTPS接続で開いているか確認してください。";
+      }
     }
+
     function resetSeed() {
-      $("memo1").value = ""; $("memo2").value = ""; $("memo3").value = "";
-      $("seedHash").value = ""; $("result").value = "";
-      seedHex = ""; memoSnapshot = ""; generationCount = 0;
+      for (let number = 1; number <= 3; number++) {
+        $("memo" + number).value = "";
+        $("check" + number).checked = false;
+        $("show" + number).checked = false;
+        updateMemoVisibility(number);
+        localStorage.removeItem(storageKey(number));
+        localStorage.removeItem(checkKey(number));
+        localStorage.removeItem(visibilityKey(number));
+      }
+      $("seedHash").value = "";
+      $("result").value = "";
+      seedHex = "";
+      memoSnapshot = "";
+      generationCount = 0;
       $("count").textContent = "生成回数：0";
-      $("status").textContent = "シードと生成結果をリセットしました。";
+      $("status").textContent = "シード、メモ、保存設定をリセットしました。";
     }
+
     async function copyResult() {
-      if (!$("result").value) { $("status").textContent = "コピーする生成結果がありません。"; return; }
-      try { await navigator.clipboard.writeText($("result").value); $("status").textContent = "生成結果をコピーしました。"; }
-      catch { $("status").textContent = "コピーできませんでした。結果を選択してコピーしてください。"; }
+      if (!$("result").value) {
+        $("status").textContent = "コピーする生成結果がありません。";
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText($("result").value);
+        $("status").textContent = "生成結果をコピーしました。";
+      } catch {
+        $("status").textContent = "コピーできませんでした。結果を選択してコピーしてください。";
+      }
     }
+
+    for (let number = 1; number <= 3; number++) {
+      loadMemo(number);
+      $("memo" + number).addEventListener("input", () => saveMemo(number));
+      $("check" + number).addEventListener("change", () => saveMemo(number));
+      $("show" + number).addEventListener("change", () => saveVisibility(number));
+    }
+
     $("makeSeed").addEventListener("click", makeSeed);
     $("generate").addEventListener("click", generatePassword);
     $("reset").addEventListener("click", resetSeed);
