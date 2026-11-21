@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172033">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="pwgPWA">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <title>パスワードジェネレーター</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    body { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; line-height: 1.6; }
+    h1 { font-size: 1.5rem; }
+    label { display: block; margin: 16px 0 6px; font-weight: 600; }
+    input, select, button { box-sizing: border-box; width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid #8888; border-radius: 8px; font: inherit; }
+    button { cursor: pointer; font-weight: 600; }
+    .buttons { display: grid; gap: 10px; margin-top: 16px; }
+    .result-row { display: flex; gap: 8px; }
+    .result-row input { flex: 1; min-width: 0; font-family: monospace; }
+    .result-row button { width: auto; }
+    .note { padding: 12px; border-left: 4px solid #d99b18; background: #d99b1818; border-radius: 4px; }
+    .muted { opacity: .8; font-size: .92rem; }
+    #status { min-height: 1.5em; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>パスワードジェネレーター</h1>
+    <p class="note">
+      このページはメモから同じパスワード列を再現できます。
+      メモが推測されるとパスワードも再現されるため、
+      <strong>重要なアカウントには、推測されやすいメモを使わないでください。</strong>
+      入力内容はこのページ内で処理し、保存・送信しません。
+    </p>
+
+    <label for="length">文字数</label>
+    <input id="length" type="number" min="1" max="256" value="8">
+
+    <label for="pattern">文字パターン</label>
+    <select id="pattern">
+      <option value="1">1：英大文字＋英小文字＋数字</option>
+      <option value="2">2：英小文字＋数字</option>
+      <option value="3">3：英大文字＋数字</option>
+      <option value="4">4：英大文字＋英小文字</option>
+      <option value="5">5：英大文字＋英小文字＋数字＋記号</option>
+      <option value="6">6：英小文字＋数字＋記号</option>
+    </select>
+
+    <label for="memo1">メモ1</label>
+    <input id="memo1" type="text" autocomplete="off">
+    <label for="memo2">メモ2</label>
+    <input id="memo2" type="text" autocomplete="off">
+    <label for="memo3">メモ3</label>
+    <input id="memo3" type="text" autocomplete="off">
+
+    <div class="buttons"><button id="makeSeed" type="button">メモからシードハッシュを作成</button></div>
+
+    <label for="seedHash">シードハッシュ（SHA-256）</label>
+    <input id="seedHash" type="text" readonly placeholder="メモを入力してハッシュを作成してください">
+
+    <div class="buttons">
+      <button id="generate" type="button">パスワードを生成</button>
+      <button id="reset" type="button">シードをリセット</button>
+    </div>
+
+    <label for="result">生成結果</label>
+    <div class="result-row">
+      <input id="result" type="text" readonly>
+      <button id="copy" type="button">コピー</button>
+    </div>
+
+    <p id="status" class="muted" aria-live="polite"></p>
+    <p id="count" class="muted">生成回数：0</p>
+    <p class="muted">同じメモ・文字数・パターンなら、同じ順番で生成した結果を再現できます。シードをリセットすると、生成回数も0に戻ります。</p>
+  </main>
+
+  <script>
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+    const groupsByPattern = {
+      "1": ["ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", "0123456789"],
+      "2": ["abcdefghijklmnopqrstuvwxyz", "0123456789"],
+      "3": ["ABCDEFGHIJKLMNOPQRSTUVWXYZ", "0123456789"],
+      "4": ["ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"],
+      "5": ["ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", "0123456789", "!@#$%^&*()-_=+[]{};:,.?"],
+      "6": ["abcdefghijklmnopqrstuvwxyz", "0123456789", "!@#$%^&*()-_=+[]{};:,.?"]
+    };
+    let seedHex = "";
+    let memoSnapshot = "";
+    let generationCount = 0;
+
+    function getMemoSnapshot() { return JSON.stringify([$("memo1").value, $("memo2").value, $("memo3").value]); }
+    function toHex(bytes) { return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join(""); }
+    async function sha256(text) {
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return new Uint8Array(digest);
+    }
+    async function makeSeed() {
+      if (!crypto.subtle) { $("status").textContent = "Web Crypto APIを利用できません。HTTPS接続で開いてください。"; return; }
+      if (![ $("memo1").value, $("memo2").value, $("memo3").value ].some(v => v.length > 0)) {
+        $("status").textContent = "シード作成には、メモを1つ以上入力してください。"; return;
+      }
+      try {
+        memoSnapshot = getMemoSnapshot();
+        seedHex = toHex(await sha256("password-generator-v1:" + memoSnapshot));
+        generationCount = 0;
+        $("seedHash").value = seedHex;
+        $("result").value = "";
+        $("count").textContent = "生成回数：0";
+        $("status").textContent = "シードハッシュを作成しました。";
+      } catch { $("status").textContent = "ハッシュの作成に失敗しました。"; }
+    }
+    async function randomBelow(limit, counterRef) {
+      const range = 0x100000000;
+      const ceiling = Math.floor(range / limit) * limit;
+      while (true) {
+        const context = `${generationCount}|${$("length").value}|${$("pattern").value}|${counterRef.value++}`;
+        const bytes = await sha256(seedHex + "|character|" + context);
+        const value = ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0;
+        if (value < ceiling) return value % limit;
+      }
+    }
+    async function generatePassword() {
+      if (!seedHex) { $("status").textContent = "先にシードハッシュを作成してください。"; return; }
+      if (getMemoSnapshot() !== memoSnapshot) { $("status").textContent = "メモが変更されています。新しいシードハッシュを作成してください。"; return; }
+      if (!crypto.subtle) { $("status").textContent = "Web Crypto APIを利用できません。HTTPS接続で開いてください。"; return; }
+      const length = Number($("length").value);
+      if (!Number.isInteger(length) || length < 1 || length > 256) { $("status").textContent = "文字数は1〜256の整数で指定してください。"; return; }
+      const groups = groupsByPattern[$("pattern").value];
+      const alphabet = [...new Set(groups.join(""))];
+      const counter = { value: 0 };
+      try {
+        const chars = [];
+        for (let i = 0; i < length; i++) { chars.push(alphabet[await randomBelow(alphabet.length, counter)]); }
+        for (let i = 0; i < groups.length; i++) {
+          const group = groups[i];
+          if (chars.some(char => group.includes(char))) continue;
+          chars[await randomBelow(length, counter)] = group[await randomBelow(group.length, counter)];
+        }
+        $("result").value = chars.join("");
+        generationCount++;
+        $("count").textContent = `生成回数：${generationCount}`;
+        $("status").textContent = "パスワードを生成しました。";
+      } catch { $("status").textContent = "生成に失敗しました。HTTPS接続で開いているか確認してください。"; }
+    }
+    function resetSeed() {
+      $("memo1").value = ""; $("memo2").value = ""; $("memo3").value = "";
+      $("seedHash").value = ""; $("result").value = "";
+      seedHex = ""; memoSnapshot = ""; generationCount = 0;
+      $("count").textContent = "生成回数：0";
+      $("status").textContent = "シードと生成結果をリセットしました。";
+    }
+    async function copyResult() {
+      if (!$("result").value) { $("status").textContent = "コピーする生成結果がありません。"; return; }
+      try { await navigator.clipboard.writeText($("result").value); $("status").textContent = "生成結果をコピーしました。"; }
+      catch { $("status").textContent = "コピーできませんでした。結果を選択してコピーしてください。"; }
+    }
+    $("makeSeed").addEventListener("click", makeSeed);
+    $("generate").addEventListener("click", generatePassword);
+    $("reset").addEventListener("click", resetSeed);
+    $("copy").addEventListener("click", copyResult);
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+    }
+  </script>
+</body>
+</html>
