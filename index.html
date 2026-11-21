@@ -19,6 +19,7 @@
     input, select, button { box-sizing: border-box; width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid #8888; border-radius: 8px; font: inherit; }
     button { cursor: pointer; font-weight: 600; }
     .buttons { display: grid; gap: 10px; margin-top: 16px; }
+    .hash-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .result-row { display: flex; gap: 8px; }
     .result-row input { flex: 1; min-width: 0; font-family: monospace; }
     .result-row button { width: auto; }
@@ -73,12 +74,13 @@
     </div>
     <p class="muted">各行の1つ目のチェックはメモの保存、2つ目のチェックは入力内容の表示切替です。</p>
 
-    <div class="buttons"><button id="makeSeed" type="button">メモからシードハッシュを作成</button></div>
+    <div class="buttons hash-actions">
+      <button id="makeSeed" type="button">ハッシュ作成</button>
+      <button id="generate" type="button">パスワード生成</button>
+    </div>
 
     <label for="seedHash">シードハッシュ（SHA-256）</label>
     <input id="seedHash" type="text" readonly placeholder="メモを入力してハッシュを作成してください">
-
-    <div class="buttons"><button id="generate" type="button">パスワードを生成</button></div>
 
     <label for="result">生成結果</label>
     <div class="result-row">
@@ -88,9 +90,9 @@
 
     <p id="status" class="muted" aria-live="polite"></p>
     <p id="count" class="muted">生成回数：0</p>
-    <p class="muted">同じメモ・文字数・パターンなら、同じ順番で生成した結果を再現できます。シードをリセットすると、生成回数も0に戻ります。</p>
+    <p class="muted">同じメモ・文字数・パターンなら、同じ順番で生成した結果を再現できます。シードをリセットすると、生成回数も0に戻ります。メモや文字数・パターンを変更した場合は、もう一度シードハッシュを作成してください。</p>
 
-    <div class="buttons"><button id="reset" type="button">シードをリセット</button></div>
+    <div class="buttons"><button id="reset" type="button">リセット</button></div>
   </main>
 
   <script>
@@ -160,12 +162,12 @@
     async function makeSeed() {
       if (!crypto.subtle) {
         $("status").textContent = "Web Crypto APIを利用できません。HTTPS接続で開いてください。";
-        return;
+        return false;
       }
 
       if (![$("memo1").value, $("memo2").value, $("memo3").value].some(v => v.length > 0)) {
         $("status").textContent = "シード作成には、メモを1つ以上入力してください。";
-        return;
+        return false;
       }
 
       try {
@@ -175,9 +177,11 @@
         $("seedHash").value = seedHex;
         $("result").value = "";
         $("count").textContent = "生成回数：0";
-        $("status").textContent = "シードハッシュを作成しました。";
+        $("status").textContent = "ハッシュを作成しました。";
+        return true;
       } catch {
         $("status").textContent = "ハッシュの作成に失敗しました。";
+        return false;
       }
     }
 
@@ -195,12 +199,13 @@
 
     async function generatePassword() {
       if (!seedHex) {
-        $("status").textContent = "先にシードハッシュを作成してください。";
-        return;
+        const created = await makeSeed();
+        if (!created) return;
+        $("status").textContent = "ハッシュを作成してパスワードを生成しています。";
       }
 
       if (getMemoSnapshot() !== memoSnapshot) {
-        $("status").textContent = "メモが変更されています。新しいシードハッシュを作成してください。";
+        $("status").textContent = "メモが変更されています。ハッシュ作成ボタンを押してください。";
         return;
       }
 
