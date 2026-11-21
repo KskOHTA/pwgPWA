@@ -123,7 +123,8 @@
       const checked = localStorage.getItem(checkKey(number)) === "true";
       $("check" + number).checked = checked;
       $("memo" + number).value = checked ? (localStorage.getItem(storageKey(number)) || "") : "";
-      $("show" + number).checked = localStorage.getItem(visibilityKey(number)) === "true";
+      const savedVisibility = localStorage.getItem(visibilityKey(number));
+      $("show" + number).checked = savedVisibility === null || savedVisibility === "true";
       updateMemoVisibility(number);
     }
 
@@ -247,7 +248,7 @@
       for (let number = 1; number <= 3; number++) {
         $("memo" + number).value = "";
         $("check" + number).checked = false;
-        $("show" + number).checked = false;
+        $("show" + number).checked = true;
         updateMemoVisibility(number);
         localStorage.removeItem(storageKey(number));
         localStorage.removeItem(checkKey(number));
