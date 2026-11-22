@@ -20,6 +20,10 @@
     button { cursor: pointer; font-weight: 600; }
     .buttons { display: grid; gap: 10px; margin-top: 16px; }
     .hash-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .settings-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+    .settings-row > div { min-width: 0; }
+    .settings-row select,
+    .settings-row input { min-width: 0; }
     .result-row { display: flex; gap: 8px; }
     .result-row input { flex: 1; min-width: 0; font-family: monospace; }
     .result-row button { width: auto; }
@@ -46,18 +50,24 @@
       </p>
     </details>
 
-    <label for="length">文字数</label>
-    <input id="length" type="number" min="1" max="256" value="8">
+    <div class="settings-row">
+      <div>
+        <label for="pattern">文字パターン</label>
+        <select id="pattern">
+          <option value="1">1：英大＋英小＋数字</option>
+          <option value="2">2：英小＋数字</option>
+          <option value="3">3：英大＋数字</option>
+          <option value="4">4：英大＋英小</option>
+          <option value="5">5：英大＋英小＋数字＋記号</option>
+          <option value="6">6：英小＋数字＋記号</option>
+        </select>
+      </div>
 
-    <label for="pattern">文字パターン</label>
-    <select id="pattern">
-      <option value="1">1：英大文字＋英小文字＋数字</option>
-      <option value="2">2：英小文字＋数字</option>
-      <option value="3">3：英大文字＋数字</option>
-      <option value="4">4：英大文字＋英小文字</option>
-      <option value="5">5：英大文字＋英小文字＋数字＋記号</option>
-      <option value="6">6：英小文字＋数字＋記号</option>
-    </select>
+      <div>
+        <label for="length">文字数</label>
+        <input id="length" type="number" min="1" max="256" value="8">
+      </div>
+    </div>
 
     <label for="memo1">メモ1</label>
     <div class="memo-row">
@@ -99,7 +109,7 @@
 
     <details class="description" id="description3">
       <summary>生成ルールの説明</summary>
-      <p class="muted">同じメモ・文字数・パターンなら、同じ順番で生成した結果を再現できます。ハッシュ作成を押すと、生成回数が0に戻ります。メモを変更した場合も、シードハッシュと生成結果がクリアされます。</p>
+      <p class="muted">同じメモ・文字数・パターンなら、同じ順番で生成した結果を再現できます。ハッシュ作成を押すと、生成回数が0に戻ります。メモが変更されても、生成時に新しいハッシュが作成されます。メモ、文字数、パターンの順番をそろえれば同じパスワードを再現できます。</p>
     </details>
 
     <label for="seedHash">シードハッシュ（SHA-256）</label>
@@ -329,7 +339,7 @@
           clearMemoDerivedValues();
           $("status").textContent = "メモ" + number + "をクリアしました。";
         } else if (event.key === "Enter") {
-          event.preventDefault();
+          event.preventEvent();
           generatePassword();
         } else if (event.key === "Tab" && $("result").value) {
           event.preventDefault();
