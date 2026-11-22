@@ -18,6 +18,7 @@
     label { display: block; margin: 16px 0 6px; font-weight: 600; }
     input, select, button { box-sizing: border-box; width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid #8888; border-radius: 8px; font: inherit; }
     button { cursor: pointer; font-weight: 600; }
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid #4b9cff; outline-offset: 2px; }
     .buttons { display: grid; gap: 10px; margin-top: 16px; }
     .hash-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .settings-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
@@ -35,6 +36,10 @@
     #status { min-height: 1.5em; }
     details.description { margin: 12px 0; }
     details.description summary { cursor: pointer; font-weight: 600; }
+    @media (max-width: 420px) {
+      body { padding: 16px 12px 32px; }
+      .hash-actions { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -89,7 +94,8 @@
     </div>
 
     <details class="description" id="description2">
-      <summary>チェックボックスの説明</summary>
+      <summary>キー操作とチェックボックスの説明</summary>
+      <p class="muted">メモ欄でEnterキーを押すとパスワードを生成します。Escapeキーを押すと、そのメモ欄を消去します。生成結果がある状態でメモ欄からTabキーを押すと、コピーボタンに移動します。通常のTabキーでは画面上の操作順に移動できます。</p>
       <p class="muted">各行の1つ目のチェックはメモの保存、2つ目のチェックは入力内容の表示切替です。</p>
     </details>
 
@@ -109,7 +115,8 @@
 
     <details class="description" id="description3">
       <summary>生成ルールの説明</summary>
-      <p class="muted">同じメモ・パターン・文字数なら、同じシードハッシュが作成できます。パスワード生成を押すたびにパスワードが生成されます。ハッシュ作成を押すと、生成回数が0に戻ります。</p>
+      <p class="muted">同じメモ・パターン・文字数なら、同じシードハッシュが作成できます。パスワード生成を押すたびにパスワードが生成されます。ハッシュ作成を押すか、メモ欄でEnterキーを押すと、シードハッシュを作成してパスワードを生成します。メモが変わると、生成結果とシードハッシュはクリアされます。</p>
+      <p class="muted">文字数が選択した文字カテゴリ数より少ない場合、すべてのカテゴリの文字を含められないことがあります。</p>
     </details>
 
     <label for="seedHash">シードハッシュ（SHA-256）</label>
