@@ -323,7 +323,7 @@
       });
       $("memo" + number).addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
-          event.preventMessageDefault();
+          event.preventDefault();
           $("memo" + number).value = "";
           saveMemo(number);
           clearMemoDerivedValues();
